@@ -30,7 +30,7 @@
     }
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
       gap: 20px;
       width: 100%;
       max-width: 1100px;
@@ -47,16 +47,39 @@
     }
     .card:hover { transform: translateY(-4px); background: #1d1d1d; }
     .label { font-size: 0.9rem; color: #aaa; margin-bottom: 8px; }
-    .value { font-size: 1.9rem; font-weight: 700; }
-    .trend { font-size: 0.9rem; margin-top: 6px; }
+    .value { font-size: 2.1rem; font-weight: 700; display: flex; justify-content: center; align-items: baseline; gap: 6px; }
+    .delta { font-size: 0.9rem; font-weight: 600; }
     .up { color: #4ade80; }
     .down { color: #f87171; }
     .neutral { color: #a3a3a3; }
-    .highlight {
-      background: linear-gradient(145deg, #1d1d1d, #262626);
-      border: 1px solid #383838;
-      box-shadow: 0 0 15px rgba(120,120,255,0.1);
+    .section {
+      margin-top: 2.5rem;
+      width: 100%;
+      max-width: 1100px;
     }
+    .section h2 {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: #e3e3e3;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #181818;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+    }
+    th {
+      background: #202020;
+      color: #bbb;
+      font-weight: 500;
+    }
+    tr:nth-child(even) { background: #1a1a1a; }
     .footer { margin-top: 2rem; color: #777; font-size: 0.9rem; }
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
@@ -67,10 +90,22 @@
 <body>
   <h1>Dashboard Comercial</h1>
   <div id="kpiGrid" class="grid"></div>
+
+  <div class="section">
+    <h2>👥 Pessoas com mais reuniões agendadas</h2>
+    <table id="rankingTable">
+      <thead>
+        <tr><th>Nome</th><th>Reuniões</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
   <div class="footer">🔄 Atualiza automaticamente a cada 60 segundos</div>
 
   <script>
     const API_URL = "https://uvvxvqrymdywxoqgnnvd.supabase.co/rest/v1/view_dashboard_geral?select=*&apikey=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2dnh2cXJ5bWR5d3hvcWdubnZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwODM3NDAsImV4cCI6MjA3NDY1OTc0MH0.3vNlo61Yl4c3XG7-8yDCKVBO4-f0iNMJeHXSSgzAI5w";
+    const MEETINGS_URL = "https://uvvxvqrymdywxoqgnnvd.supabase.co/rest/v1/meetings?select=created_by,start_time&apikey=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2dnh2cXJ5bWR5d3hvcWdubnZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwODM3NDAsImV4cCI6MjA3NDY1OTc0MH0.3vNlo61Yl4c3XG7-8yDCKVBO4-f0iNMJeHXSSgzAI5w";
 
     async function fetchData() {
       const res = await fetch(API_URL);
@@ -78,38 +113,40 @@
       return data[0];
     }
 
-    function formatValue(v, suffix = "") {
-      if (v === null || v === undefined || isNaN(v)) return "—";
-      if (typeof v === "number" && v % 1 !== 0) v = v.toFixed(1);
-      return v + suffix;
+    async function fetchMeetings() {
+      const res = await fetch(MEETINGS_URL);
+      const data = await res.json();
+      return data;
     }
 
-    function trendText(v) {
-      if (v === null || v === undefined || isNaN(v)) return { text: "—", cls: "neutral" };
-      if (v > 0) return { text: "▲ Subida", cls: "up" };
-      if (v < 0) return { text: "▼ Queda", cls: "down" };
-      return { text: "— Estável", cls: "neutral" };
+    function formatDelta(v) {
+      if (v === null || isNaN(v)) return { text: "—", cls: "neutral" };
+      const sign = v > 0 ? "+" : "";
+      const cls = v > 0 ? "up" : v < 0 ? "down" : "neutral";
+      return { text: `${sign}${v.toFixed(1)}%`, cls };
     }
 
     function renderKPIs(d) {
       const container = document.getElementById("kpiGrid");
       container.innerHTML = "";
 
+      const deltas = {
+        reunioes: formatDelta(d.reunioes_vs_ontem_pct),
+        contactos: formatDelta(d.contactos_vs_ontem_pct)
+      };
+
       const cards = [
-        { label: "📅 Reuniões Hoje", value: formatValue(d.reunioes_hoje) },
-        { label: "👥 Contactos Hoje", value: formatValue(d.contactos_hoje) },
-        { label: "📈 Variação Reuniões vs Ontem", value: formatValue(d.reunioes_vs_ontem_pct, "%"), trend: trendText(d.reunioes_vs_ontem_pct) },
-        { label: "📉 Variação Contactos vs Ontem", value: formatValue(d.contactos_vs_ontem_pct, "%"), trend: trendText(d.contactos_vs_ontem_pct) },
-        { label: "🧑‍💼 Top Consultor do Dia", value: d.top_consultor_dia || "—", highlight: true },
-        { label: "🏆 Top Consultor do Mês", value: d.top_consultor_mes || "—" },
-        { label: "📊 Taxa Conversão Total", value: formatValue(d.taxa_conversao_total, "%"), trend: trendText(d.taxa_conversao_total), highlight: true },
-        { label: "⏱️ Média Dias até Reunião", value: formatValue(d.media_dias_contacto_para_reuniao) },
-        { label: "🗓️ Taxa No-Show", value: formatValue(d.taxa_no_show, "%"), trend: trendText(d.taxa_no_show) },
+        { label: "📅 Reuniões Criadas Hoje", value: d.reunioes_hoje, delta: deltas.reunioes },
+        { label: "👥 Contactos Criados Hoje", value: d.contactos_hoje, delta: deltas.contactos },
+        { label: "📊 Reuniões Semana", value: d.reunioes_semana },
+        { label: "📈 Contactos Semana", value: d.contactos_semana },
+        { label: "📅 Reuniões Mês", value: d.reunioes_mes },
+        { label: "👤 Contactos Mês", value: d.contactos_mes },
       ];
 
       cards.forEach(c => {
         const card = document.createElement("div");
-        card.className = "card" + (c.highlight ? " highlight" : "");
+        card.className = "card";
 
         const label = document.createElement("div");
         label.className = "label";
@@ -117,25 +154,51 @@
 
         const value = document.createElement("div");
         value.className = "value";
-        value.textContent = c.value;
+        value.textContent = c.value ?? "—";
+
+        if (c.delta) {
+          const delta = document.createElement("span");
+          delta.className = "delta " + c.delta.cls;
+          delta.textContent = c.delta.text;
+          value.appendChild(delta);
+        }
 
         card.appendChild(label);
         card.appendChild(value);
-
-        if (c.trend) {
-          const trend = document.createElement("div");
-          trend.className = "trend " + c.trend.cls;
-          trend.textContent = c.trend.text;
-          card.appendChild(trend);
-        }
-
         container.appendChild(card);
       });
     }
 
+    function renderRanking(meetings) {
+      const ranking = {};
+      meetings.forEach(m => {
+        if (!m.created_by) return;
+        const day = new Date(m.start_time).toDateString();
+        if (day === new Date().toDateString()) {
+          ranking[m.created_by] = (ranking[m.created_by] || 0) + 1;
+        }
+      });
+
+      const sorted = Object.entries(ranking).sort((a,b) => b[1] - a[1]).slice(0,5);
+      const tbody = document.querySelector("#rankingTable tbody");
+      tbody.innerHTML = "";
+      sorted.forEach(([nome, count]) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${nome}</td><td>${count}</td>`;
+        tbody.appendChild(tr);
+      });
+
+      if (sorted.length === 0) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td colspan="2">Sem reuniões agendadas hoje</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
     async function load() {
-      const data = await fetchData();
+      const [data, meetings] = await Promise.all([fetchData(), fetchMeetings()]);
       renderKPIs(data);
+      renderRanking(meetings);
     }
 
     load();
